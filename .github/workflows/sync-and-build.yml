@@ -50,10 +50,16 @@ jobs:
           chmod +x ihme_linux_armv7
           ls -lh ihme_linux_armv7
 
-      - name: Create Release and Upload ARMv7 Binary
+      - name: Create or Update Release and Upload ARMv7 Binary
         if: steps.check_upstream.outputs.already_built == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.check_upstream.outputs.upstream_tag }}"
-          gh release create "$TAG" ihme_linux_armv7             --title "ihme $TAG (ARMv7 Linux)"             --notes "Automated ARMv7 build of lroolle/ihme-cli @ $TAG for Synology DS214"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, uploading/overwriting asset..."
+            gh release upload "$TAG" ihme_linux_armv7 --clobber
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" ihme_linux_armv7               --title "ihme $TAG (ARMv7 Linux)"               --notes "Automated ARMv7 build of lroolle/ihme-cli @ $TAG for Synology DS214"
+          fi
