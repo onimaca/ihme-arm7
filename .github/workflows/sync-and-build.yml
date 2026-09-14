@@ -1,0 +1,59 @@
+name: Sync and Build ARMv7
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check latest upstream release
+        id: check_upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_TAG=$(curl -sL https://api.github.com/repos/lroolle/ihme-cli/releases/latest | jq -r .tag_name)
+          echo "Upstream tag: $UPSTREAM_TAG"
+          echo "upstream_tag=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+
+          MY_TAG=$(curl -sL https://api.github.com/repos/onimaca/ihme-arm7/releases/latest | jq -r .tag_name)
+          echo "Current my tag: $MY_TAG"
+
+          if [ "$UPSTREAM_TAG" = "$MY_TAG" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "already_built=true" >> $GITHUB_OUTPUT
+          else
+            echo "already_built=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout upstream source
+        if: steps.check_upstream.outputs.already_built == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: lroolle/ihme-cli
+          ref: ${{ steps.check_upstream.outputs.upstream_tag }}
+
+      - name: Setup Go
+        if: steps.check_upstream.outputs.already_built == 'false'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build for linux/armv7
+        if: steps.check_upstream.outputs.already_built == 'false'
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w -X main.version=${{ steps.check_upstream.outputs.upstream_tag }}" -o ihme_linux_armv7 ./cmd/ihme
+          chmod +x ihme_linux_armv7
+          ls -lh ihme_linux_armv7
+
+      - name: Create Release and Upload ARMv7 Binary
+        if: steps.check_upstream.outputs.already_built == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.check_upstream.outputs.upstream_tag }}"
+          gh release create "$TAG" ihme_linux_armv7             --title "ihme $TAG (ARMv7 Linux)"             --notes "Automated ARMv7 build of lroolle/ihme-cli @ $TAG for Synology DS214"
