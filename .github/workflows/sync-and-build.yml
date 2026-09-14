@@ -56,10 +56,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.check_upstream.outputs.upstream_tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists, uploading/overwriting asset..."
-            gh release upload "$TAG" ihme_linux_armv7 --clobber
+          REPO="${{ github.repository }}"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG exists in $REPO, uploading/overwriting asset..."
+            gh release upload "$TAG" ihme_linux_armv7 --repo "$REPO" --clobber
           else
-            echo "Creating release $TAG..."
-            gh release create "$TAG" ihme_linux_armv7               --title "ihme $TAG (ARMv7 Linux)"               --notes "Automated ARMv7 build of lroolle/ihme-cli @ $TAG for Synology DS214"
+            echo "Creating release $TAG in $REPO..."
+            gh release create "$TAG" ihme_linux_armv7               --repo "$REPO"               --title "ihme $TAG (ARMv7 Linux)"               --notes "Automated ARMv7 build of lroolle/ihme-cli @ $TAG for Synology DS214"
           fi
